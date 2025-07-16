@@ -7,11 +7,11 @@ output_size=256
 
 targets=(
     "apple"
-    "bonsai"
-    "daisy"
-    "ice_cream"
-    "lighthouse"
-    "penguin"
+    # "bonsai"
+    # "daisy"
+    # "ice_cream"
+    # "lighthouse"
+    # "penguin"
 )
 
 for target in "${targets[@]}"; do

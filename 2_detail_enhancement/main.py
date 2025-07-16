@@ -363,6 +363,11 @@ def detail_enhancement(cfg, svg_cleaned_path, target_image_path, index=1):
         original_image.save(f"{root_folder}/{target}_template.png")
 
         del pipe
+        # Force GPU memory cleanup
+        torch.cuda.empty_cache()
+        import gc
+        gc.collect()
+        print("GPU memory cleared after diffusion")
 
     except Exception as e:
         print(f"Error during detail_enhancement() for {target}: {str(e)}")
@@ -396,20 +401,20 @@ def parse_arguments():
 
     args = parser.parse_args()
 
-    # segment init image
+    # segment init image (reduced memory config)
     args.sam_config_coarse = {
-        "points_per_side": 32,
+        "points_per_side": 24,  # reduced from 32
         "pred_iou_thresh": 0.86,
-        "points_per_batch": 200,
+        "points_per_batch": 64,  # reduced from 200 
         "min_mask_region_area": 100,
         "crop_n_layers": 1,
         "crop_n_points_downscale_factor": 1,
     }
-    # segment target image
+    # segment target image (reduced memory config)
     args.sam_config_fine = {
-        "points_per_side": 64,
+        "points_per_side": 48,  # reduced from 64
         "pred_iou_thresh": 0.87,
-        "points_per_batch": 200,
+        "points_per_batch": 64,  # reduced from 200
         "min_mask_region_area": 30,
     }
 
@@ -447,8 +452,27 @@ if __name__ == "__main__":
     print(f"***** SAM *****")
     final_svg_path = f"{cfg.root_folder}/{cfg.target}_with_new_path.svg"
     if not os.path.exists(final_svg_path):
+        # Clear any remaining GPU memory before SAM
+        torch.cuda.empty_cache()
+        import gc
+        gc.collect()
+        print("GPU memory cleared before SAM")
+        
+        # Initialize SAM models sequentially with memory management
+        print("Loading SAM coarse model...")
         mask_generator_coarse = initialize_sam(cfg.sam_checkpoint, cfg.sam_config_coarse, cfg.model_type, device)
+        
+        print("Loading SAM fine model...")
         mask_generator_fine = initialize_sam(cfg.sam_checkpoint, cfg.sam_config_fine, cfg.model_type, device)
+        
+        print("Running SAM processing...")
         sam_add_paths(cfg, svg_clean, target_image_path, final_svg_path, mask_generator_coarse, mask_generator_fine)
+        
+        # Clean up SAM models
+        del mask_generator_coarse
+        del mask_generator_fine
+        torch.cuda.empty_cache()
+        gc.collect()
+        print("SAM processing completed and memory cleared")
     else:
         print(f"Final SVG file {final_svg_path} already exists")

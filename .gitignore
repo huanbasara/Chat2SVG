@@ -120,7 +120,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-# .env
+.env
 .venv
 env/
 venv/
@@ -158,3 +158,14 @@ sam/
 cmd_10.pth
 .DS_Store
 .idea
+
+# Chat2SVG 项目特定忽略
+# 输出目录
+output/
+# 环境相关目录
+diffvg/
+picosvg/
+# conda/miniconda
+miniconda3/
+# 下载的安装包
+Miniconda3-*.sh
