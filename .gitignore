@@ -163,8 +163,8 @@ cmd_10.pth
 # 输出目录
 output/
 # 环境相关目录
-diffvg/
-picosvg/
+diffvg
+picosvg
 # conda/miniconda
 miniconda3/
 # 下载的安装包
