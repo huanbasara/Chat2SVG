@@ -394,6 +394,7 @@ def parse_arguments():
     parser.add_argument("--sam_checkpoint", type=str, default="./models/sam_vit_h_4b8939.pth", help="Path to the SAM checkpoint")
     parser.add_argument("--model_type", type=str, default="vit_h", help="Model type for SAM")
     parser.add_argument("--thresh_iou", type=float, default=0.4, help="IoU threshold for selecting masks")
+    parser.add_argument("--stage", type=str, choices=["svg_processing", "image_diffusion", "sam_processing"], help="Run specific stage only")
     parser.add_argument("--remove_outer_mask", type=bool, default=True, help="Whether to remove the outer mask")
     parser.add_argument("--thresh_visible_area_ratio", type=float, default=0.2, help="Threshold of exposed area ratio for selecting masks")
     parser.add_argument("--thresh_area_ub_ratio", type=float, default=0.5, help="Upper bound of area for selecting masks, e.g., 0.1 for 10% of the second largest mask in target")
@@ -428,11 +429,76 @@ def parse_arguments():
     return args
 
 
+def run_svg_processing_only(cfg):
+    """Stage 2a: SVG Processing Only"""
+    print(f"***** SVG Processing Only *****")
+    svg_template_path = f"{cfg.root_folder}/{cfg.target}_template.svg"
+    svg_cleaned_path = f"{cfg.root_folder}/{cfg.target}_clean.svg"
+    assert os.path.exists(svg_template_path), f"Input SVG file {svg_template_path} does not exist"
+    svg_clean = clean_data(cfg, svg_template_path, svg_cleaned_path)
+    print("Cleaned SVG file saved to", svg_cleaned_path)
+    print("SVG Processing completed")
+
+def run_image_diffusion_only(cfg):
+    """Stage 2b: Image Diffusion Only"""
+    print(f"***** Image Diffusion Only *****")
+    svg_cleaned_path = f"{cfg.root_folder}/{cfg.target}_clean.svg"
+    target_image_path = f"{cfg.root_folder}/{cfg.target}_target.png"
+    if not os.path.exists(target_image_path):
+        assert os.path.exists(svg_cleaned_path), f"Cleaned SVG file {svg_cleaned_path} does not exist"
+        detail_enhancement(cfg, svg_cleaned_path, target_image_path, index=1)
+    else:
+        print(f"Target image {target_image_path} already exists")
+    print("Image Diffusion completed")
+
+def run_sam_processing_only(cfg, device):
+    """Stage 2c: SAM Processing Only"""
+    print(f"***** SAM Processing Only *****")
+    svg_cleaned_path = f"{cfg.root_folder}/{cfg.target}_clean.svg"
+    target_image_path = f"{cfg.root_folder}/{cfg.target}_target.png"
+    final_svg_path = f"{cfg.root_folder}/{cfg.target}_with_new_path.svg"
+    
+    if not os.path.exists(final_svg_path):
+        # Reload svg_clean from file to avoid memory dependency
+        from svglib.svg import SVG
+        svg_clean = SVG.load_svg(svg_cleaned_path)
+        
+        print("Loading SAM coarse model...")
+        mask_generator_coarse = initialize_sam(cfg.sam_checkpoint, cfg.sam_config_coarse, cfg.model_type, device)
+        
+        print("Loading SAM fine model...")
+        mask_generator_fine = initialize_sam(cfg.sam_checkpoint, cfg.sam_config_fine, cfg.model_type, device)
+        
+        print("Running SAM processing...")
+        sam_add_paths(cfg, svg_clean, target_image_path, final_svg_path, mask_generator_coarse, mask_generator_fine)
+        
+        # Clean up
+        del mask_generator_coarse
+        del mask_generator_fine
+        del svg_clean
+        torch.cuda.empty_cache()
+        import gc
+        gc.collect()
+        print("SAM processing completed and memory cleared")
+    else:
+        print(f"Final SVG file {final_svg_path} already exists")
+
 if __name__ == "__main__":
     cfg = parse_arguments()
     set_seed(cfg.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"======== Stage 2: Detail Enhancement for {cfg.target} ========")
+
+    # Handle individual stage execution
+    if cfg.stage == "svg_processing":
+        run_svg_processing_only(cfg)
+        exit(0)
+    elif cfg.stage == "image_diffusion":
+        run_image_diffusion_only(cfg)
+        exit(0)
+    elif cfg.stage == "sam_processing":
+        run_sam_processing_only(cfg, device)
+        exit(0)
 
     print(f"***** SVG Processing *****")
     svg_template_path = f"{cfg.root_folder}/{cfg.target}_template.svg"
