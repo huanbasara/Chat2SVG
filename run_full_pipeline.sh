@@ -4,7 +4,7 @@
 set -e
 
 # 激活conda环境
-source $(conda info --base)/etc/profile.d/conda.sh
+source /opt/chat2svg-env/miniconda3/etc/profile.d/conda.sh
 conda activate chat2svg
 
 echo "清理output目录..."

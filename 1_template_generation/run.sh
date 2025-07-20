@@ -1,3 +1,9 @@
+#!/bin/bash
+
+# Activate conda environment
+source /opt/chat2svg-env/miniconda3/etc/profile.d/conda.sh
+conda activate chat2svg
+
 experiment_name="example_generation"
 targets=(
     "apple"

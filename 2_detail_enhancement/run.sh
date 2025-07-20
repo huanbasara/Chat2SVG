@@ -19,7 +19,7 @@ for target in "${targets[@]}"; do
     echo "=== 运行Stage 2 (分离版本) for ${target} ==="
     
     # Activate conda environment once
-    source $(conda info --base)/etc/profile.d/conda.sh
+    source /opt/chat2svg-env/miniconda3/etc/profile.d/conda.sh
     conda activate chat2svg
     
     # Stage 2a: SVG Processing

@@ -1,6 +1,10 @@
 #!/bin/bash
 set -uo pipefail
 
+# Activate conda environment
+source /opt/chat2svg-env/miniconda3/etc/profile.d/conda.sh
+conda activate chat2svg
+
 gpu_id=0
 experiment_name="example_generation"
 output_size=256
