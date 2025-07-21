@@ -1,0 +1,241 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage{changepage}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning,er,calc}
+\usepackage[normalem]{ulem}
+\usepackage{fancyvrb}
+
+% Page setup - smaller margins for more content
+\geometry{margin=1.5cm}
+\pagestyle{plain}
+
+% Reduce line spacing globally
+\setstretch{0.85}
+
+% Remove indentation and reduce spacing around sections and subsections with distinctive colors
+\titleformat{\section}{\large\bfseries\color{purple!80!black}}{\thesection}{0.5em}{}
+\titlespacing*{\section}{0pt}{6pt plus 1pt minus 1pt}{2pt plus 1pt minus 1pt}
+
+\titleformat{\subsection}{\normalsize\bfseries\color{green!40!black}}{\thesubsection}{0.5em}{}
+\titlespacing*{\subsection}{0pt}{4pt plus 1pt minus 1pt}{1pt plus 1pt minus 1pt}
+
+\titleformat{\subsubsection}{\small\bfseries}{\thesubsubsection}{0.5em}{}
+\titlespacing*{\subsubsection}{0pt}{3pt plus 1pt minus 1pt}{1pt plus 1pt minus 1pt}
+
+% Set paragraph formatting - no first line indent, small left margin for body text
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2pt plus 1pt minus 1pt}
+
+% Create environment for body text with small left margin
+\newenvironment{bodytext}{\begin{adjustwidth}{1.2em}{0pt}}{\end{adjustwidth}}
+
+% Custom colors
+\definecolor{tableheader}{RGB}{100,150,200}
+\definecolor{tableodd}{RGB}{245,245,245}
+
+% Table styling - smaller font and tighter spacing
+\newcommand{\tableheaderstyle}{\rowcolor{tableheader}}
+\newcommand{\headertext}[1]{\textcolor{white}{\textbf{\small #1}}}
+
+% Set table font size and reduce row height with proper cell padding
+\newcommand{\tablesetup}{\small\renewcommand{\arraystretch}{1.1}\setlength{\tabcolsep}{4pt}%
+\setlength{\LTpre}{3pt}\setlength{\LTpost}{3pt}}
+
+% Hyperlink setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    urlcolor=blue!70!black,
+    citecolor=blue!70!black
+}
+
+\begin{document}
+
+\title{Chat2SVG Code Structure Overview}
+\author{Code Analysis Documentation}
+\date{\today}
+\maketitle
+
+\section{Stage 1: Template Generation}
+
+\begin{bodytext}
+This stage handles the initial conversion from text prompt to basic SVG structure.
+\end{bodytext}
+
+\subsection{Expand Text Prompt}
+
+\begin{bodytext}
+This step uses a predefined prompt template to expand the original short text prompt into a more detailed description. The process involves:
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Process Flow:}
+\begin{itemize}
+\item Load the expand\_text\_prompt template from prompts.yaml
+\item Replace the \textcolor{red}{\textbf{<TEXT\_PROMPT>}} placeholder with the actual user input
+\item Send the complete prompt to the Large Language Model (LLM)
+\item Receive expanded text prompt with detailed scene description, object breakdown, and layout information
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Implementation:} The code loads the template, performs string replacement, and sends the formatted prompt to the AI session for processing. The expanded result includes detailed object descriptions and component breakdowns that will be used in the next step.
+\end{bodytext}
+
+\subsection{Generate SVG Code}
+
+\begin{bodytext}
+This step generates SVG code based on the expanded text prompt from the previous step. The process involves:
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Process Flow:}
+\begin{itemize}
+\item Load the write\_svg\_code template from prompts.yaml
+\item Maintain session history including the previous expand text prompt request and response
+\item Send the complete request (template + historical chat records) to the Large Language Model (LLM)
+\item Receive SVG code that corresponds to the expanded text prompt
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Implementation:} The system maintains a session object that tracks the conversation history. When generating SVG code, it combines the write\_svg\_code prompt template with the accumulated chat history (including the expanded prompt from step 1.1) to provide the LLM with complete context for generating accurate SVG output.
+\end{bodytext}
+
+\subsection{Iterate Improvement}
+
+\begin{bodytext}
+This step refines the generated SVG code through iterative improvement using visual feedback. The process involves:
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Process Flow:}
+\begin{itemize}
+\item Convert the generated SVG code to PNG image for visual analysis
+\item Load the svg\_refine template from prompts.yaml
+\item Send multimodal input to the AI: PNG image + svg\_refine prompt
+\item Include historical request and response records from the session (which contains the SVG code from previous iterations)
+\item Receive refined SVG code that corrects visual oddities and inconsistencies
+\item Repeat for multiple iterations (cfg.refine\_iter) to progressively improve quality
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Implementation:} The system uses a multimodal AI model that can process both text (svg\_refine prompt) and images (rendered PNG). The SVG code from previous iterations is maintained in the session's historical records, allowing the AI to understand the current state while analyzing the visual rendering. By examining the PNG image, the AI can identify issues like misalignments, hidden elements, disproportionate scaling, and incorrect layering that may not be apparent from examining code alone. Each iteration builds upon the previous improvements while maintaining session context.
+\end{bodytext}
+
+\section{Stage 2: Detail Enhancement}
+
+\begin{bodytext}
+Content to be added...
+\end{bodytext}
+
+\section{Stage 3: SVG Optimization}
+
+\begin{bodytext}
+Content to be added...
+\end{bodytext}
+
+\section{Appendix: Prompt Templates}
+
+\subsection{Expand Text Prompt Template}
+
+\begin{bodytext}
+\textbf{Task 1}: Expand the given text prompt to detail the abstract concept. Follow these steps in your response:
+
+\textbf{Step 1. Expand the Short Text Prompt}. Start by expanding the short text prompt into a more detailed description of the scene. Focus on talking about what objects appear in the scene, rather than merely talking the abstract idea. For example, for the short prompt "A spaceship flying in the sky", expand it to "A silver spaceship soars through the galaxy, with distant planets and shimmering stars forming a vivid backdrop".
+
+\textbf{Step 2. Object Breakdown and Component Analysis}.
+\begin{itemize}
+\item Step 2.1. For every object in the expanded prompt, add more details to describe the object. You can include color, size, shape, motion, status, or any other relevant details. For example, "A silver spaceship" can be expanded into "A silver spaceship with two large wings, ejecting flames from its thrusters".
+\item Step 2.2. Then, break down each object into its individual components. For instance, the spaceship's components could be "a body (rectangle), two triangular wings (polygon), a window (circle), and flames (polyline) emitting from the rear thrusters (rectangle)". You need to list **ALL** parts of each object. If you ignore any part, the system will assume it's not present in the scene. When listing components, explain how each component can be depicted using the specified SVG elements.
+\end{itemize}
+
+\textbf{Step 3. Scene Layout and Composition}. Propose a logical and visually appealing layout for the final scene. For each object and each component, describe their positions on the canvas, relative/absolute sizes, colors, and relative spatial arrangement (e.g., the hand is connected to the arm, the moon is behind the mountain).
+
+When expanding the prompt, follow these guidelines:
+\begin{enumerate}
+\item When expanding the short text prompt (Step 1), avoid adding excessive new objects to the scene. Introduce additional objects only if they enhance the completeness of the scene. If the prompt mentions just a single object, you can choose to not introduce new objects and focus instead on enriching the description with more details about that object.
+\item When add details to describe objects (Step 2.1), the description can be detailed and vivid, but the language should be clear and concise. Avoid overly complex or ambiguous descriptions.
+\item When breaking down objects into individual components (Step 2.2), ensure you list all essential parts typically comprising that object, even if they are not explicitly mentioned in the initial object description.
+\end{enumerate}
+
+Here is the text prompt: "\textcolor{red}{\textbf{<TEXT\_PROMPT>}}"
+\end{bodytext}
+
+\subsection{Write SVG Code Template}
+
+\begin{bodytext}
+\textbf{Task 2}: Write the SVG code following the expanded prompt and layout of key components, adhering to these rules:
+
+\textbf{SVG Requirements:}
+\begin{enumerate}
+\item \textbf{SVG Elements}: Use only the specified elements: rect, circle, ellipse, line, polyline, polygon, and short path (up to 5 commands). Other elements like text, Gradient, clipPath, etc., are not allowed. If there is path, the final command should be Z. If a path only contains a single command, you need to increase the stroke-width to make it visible.
+\item \textbf{Viewbox}: The viewbox should be 512 by 512.
+\item \textbf{Stacking Order}: Elements defined later will overlap earlier ones. So if there is a background, it should be defined first.
+\item \textbf{Colors}: Use hexadecimal color values (e.g., \#FF0000). For layers fully enclosed by others, differentiate with distinct colors.
+\item \textbf{Comments}: Include concise phrase to explain the semantic meaning of each element.
+\item \textbf{Shape IDs}: Every shape element should have a unique "id" starting with "path\_num".
+\end{enumerate}
+
+\textbf{Example Translation}: A translation from the expanded prompt to SVG code is provided, showing how to convert object descriptions into specific SVG elements with proper positioning, colors, and attributes.
+
+\textbf{Output Format}: Include the SVG code in the following format:
+\begin{verbatim}
+```svg
+  svg_code
+```
+\end{verbatim}
+
+In your answer, avoid any unnecessary dialogue.
+\end{bodytext}
+
+\subsection{SVG Refine Template}
+
+\begin{bodytext}
+\textbf{Task 3}: The SVG code you provide might have a critical issue: while it adheres to the text prompt, the rendered image could reveal real-world inconsistencies or visual oddities. For example:
+
+\textbf{Common Visual Issues:}
+\begin{enumerate}
+\item \textbf{Misalignments}: The unicorn's legs may appear detached from the body.
+\item \textbf{Hidden elements}: The snowman's arms could be hidden if they blend with the body due to identical colors and overlapping elements, making them indistinguishable.
+\item \textbf{Unrecognizable object}: The SVG code includes a tiger, but the rendered image is unrecognizable due to a disorganized arrangement of shapes.
+\item \textbf{Disproportionate scaling}: The squirrel's tail might appear overly small compared to its body.
+\item \textbf{Color issues}: If a shape is purely white and placed on a white background, it may seem invisible in the final image. If there is no background, try to avoid using white for the shape.
+\item \textbf{Incorrect path order}: Incorrect path order can cause unintended overlaps, such as the face being completely covered by the hair or hat.
+\end{enumerate}
+
+\textbf{Refinement Process:}
+\begin{enumerate}
+\item First, carefully examine the image and SVG code to detect visual problems. Please list ALL the visual problems you find. If the image is severely flawed/unrecognizable, consider rewriting the entire SVG code.
+\item Second, adjust the SVG code to correct these visual oddities, ensuring the final image appears more realistic and matches the expanded prompt.
+\item When adding/deleting/modifying elements, ensure the IDs are unique and continuous, starting from "path\_1", "path\_2", etc.
+\end{enumerate}
+
+\textbf{Important}: Your task is NOT to modify the SVG code to better match the image content, but to identify visual oddities in the image and suggest adjustments to the SVG code to correct them. You are not permitted to delete any SVG elements unless rewriting is involved.
+
+\textbf{Output Format}: Include the SVG code in the following format:
+\begin{verbatim}
+```svg
+  svg_code
+```
+\end{verbatim}
+\end{bodytext}
+
+\end{document} 
