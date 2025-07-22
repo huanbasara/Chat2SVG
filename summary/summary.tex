@@ -140,7 +140,145 @@ This step refines the generated SVG code through iterative improvement using vis
 \textbf{Implementation:} The system uses a multimodal AI model that can process both text (svg\_refine prompt) and images (rendered PNG). The SVG code from previous iterations is maintained in the session's historical records, allowing the AI to understand the current state while analyzing the visual rendering. By examining the PNG image, the AI can identify issues like misalignments, hidden elements, disproportionate scaling, and incorrect layering that may not be apparent from examining code alone. Each iteration builds upon the previous improvements while maintaining session context.
 \end{bodytext}
 
+\subsection{Best SVG Selection}
+
+\begin{bodytext}
+After iterative improvement, the system selects the best SVG from multiple candidates using evaluation models:
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Evaluation Models:}
+\begin{itemize}
+\item \textbf{ImageReward}: Third-party reward model from THUDM (Tsinghua University), trained on 137k expert comparisons for text-to-image evaluation
+\item \textbf{CLIP}: OpenAI's Contrastive Language-Image Pre-training model for multimodal understanding
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Selection Process:}
+\begin{itemize}
+\item Convert all candidate SVG files to PNG images for evaluation
+\item Input text prompt + PNG images to the selected evaluation model
+\item \textbf{ImageReward Output}: Ranking list based on human preference alignment
+\item \textbf{CLIP Output}: Similarity scores between text and image features
+\item Select the highest-scoring SVG as the final template output
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Model Characteristics:} Both models are general-purpose evaluation tools, not specific to SVG generation. ImageReward focuses on human preference-based quality assessment, while CLIP evaluates semantic text-image alignment. They use PNG format because these models are designed for raster image evaluation, providing reliable assessment of visual-textual correspondence.
+\end{bodytext}
+
 \section{Stage 2: Detail Enhancement}
+
+\begin{bodytext}
+This stage enhances the basic SVG output from Stage 1 by processing it through AI models to add details, improve visual quality, and apply artistic styles.
+\end{bodytext}
+
+\subsection{SVG Processing}
+
+\begin{bodytext}
+This step performs rule-based cleaning and normalization of the SVG template selected from Stage 1. The process standardizes the SVG format to prepare it for subsequent AI processing.
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Input and Output:}
+\begin{itemize}
+\item \textbf{Input}: svg\_template\_path - Best SVG template selected by ImageReward/CLIP from Stage 1
+\item \textbf{Output}: svg\_cleaned\_path - Cleaned and standardized SVG file ready for enhancement
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Two-Phase Cleaning Process:} The SVG cleaning employs two complementary tools to achieve comprehensive standardization:
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Phase 1: picosvg Standardization}
+
+\textcolor{green!40!black}{\textbf{Tool Overview:}} picosvg is a command-line tool developed by Google Fonts team, specifically designed to simplify SVG files for font build processes. It transforms complex SVG structures into standardized "pico" (minimal) format containing only essential rendering elements.
+
+\textcolor{green!40!black}{\textbf{Implementation:}} The system executes picosvg as an external command-line process using \texttt{os.system()}, redirecting output to the cleaned SVG file:
+\begin{verbatim}
+os.system(f'picosvg {svg_template_path} > {svg_cleaned_path}')
+\end{verbatim}
+
+\textcolor{green!40!black}{\textbf{Key Standardization Functions:}}
+\begin{itemize}
+\item \textbf{Coordinate Normalization}: Converts all coordinates to absolute values, eliminating relative positioning
+\item \textbf{Command Expansion}: Removes SVG path shorthand (H, S, etc.), using only full coordinate commands
+\item \textbf{Structure Simplification}: Ensures exactly one \texttt{<defs>} element as first child, followed only by \texttt{<g>} and \texttt{<path>} elements
+\item \textbf{Metadata Removal}: Strips editor-specific attributes and unnecessary XML elements
+\item \textbf{Format Consistency}: Produces deterministic output format suitable for machine processing
+\end{itemize}
+
+\textcolor{green!40!black}{\textbf{Why picosvg for AI-Generated SVG:}} AI-generated SVG files often contain inconsistent formatting, relative coordinates, and complex structures that can interfere with downstream processing. picosvg standardizes these variations into a predictable format that the subsequent svglib processing can reliably handle.
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Phase 2: svglib Optimization}
+\begin{itemize}
+\item \textbf{Path Conversion}: Convert all elements to standardized paths (to\_path)
+\item \textbf{Arc Simplification}: Simplify complex arc representations (simplify\_arcs)
+\item \textbf{Visibility Optimization}: Remove completely obscured paths (remove\_invisible\_paths)
+\item \textbf{Bezier Standardization}: Convert lines to Bezier curves and split complex paths (line\_to\_bezier, split\_paths)
+\item \textbf{Redundancy Removal}: Filter duplicates, consecutive elements, and empty paths (drop\_z, filter\_duplicates, filter\_consecutives, filter\_empty)
+\item \textbf{Precision Control}: Save with 6-digit coordinate precision for optimal quality
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Purpose of Rule-Based Cleaning:}
+\begin{itemize}
+\item \textbf{Format Normalization}: Standardize AI-generated SVG to consistent, predictable format
+\item \textbf{Noise Reduction}: Remove redundant elements that could interfere with diffusion models
+\item \textbf{Processing Preparation}: Ensure compatibility with downstream image diffusion and SAM processing
+\item \textbf{Performance Optimization}: Reduce file size and computational complexity for subsequent stages
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Deterministic vs. Creative Processing:} Unlike the creative AI processes in other stages, this step applies deterministic, rule-based transformations that produce consistent results. It serves as a crucial bridge between the creative SVG generation in Stage 1 and the creative enhancement in Stage 2b, ensuring data quality and format consistency.
+\end{bodytext}
+
+\subsection{Image Diffusion}
+
+\begin{bodytext}
+This step enhances the cleaned SVG using two independent models: a specialized diffusion model for artistic style and a ControlNet for structural control.
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Diffusion Model: aamXLAnimeMix v1.0}
+\begin{itemize}
+\item \textbf{Purpose}: Generate anime/cartoon style images with children's coloring book aesthetic
+\item \textbf{Source}: Pre-trained Stable Diffusion XL model specialized for anime artwork (6.46GB)
+\item \textbf{Input}: Text prompt + original SVG image + blurred control image
+\item \textbf{Output}: Enhanced artistic PNG image
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{ControlNet Model: controlnet-tile-sdxl-1.0}
+\begin{itemize}
+\item \textbf{Purpose}: Preserve SVG structure while allowing artistic enhancement
+\item \textbf{Architecture}: Independent U-Net encoder that replicates main diffusion model structure
+\item \textbf{Input}: Blurred SVG rendering (Gaussian blur, radius=7)
+\item \textbf{Output}: Multi-scale structural features for layout preservation
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Model Integration Process:}
+\begin{itemize}
+\item ControlNet extracts structural features from blurred control image
+\item Features have identical dimensions to corresponding diffusion model layers
+\item Integration via element-wise addition: main\_features[i] + control\_features[i]
+\item Fusion occurs at multiple resolution levels: 512×512, 256×256, 128×128, 64×64
+\item Result: Enhanced image with preserved SVG layout and anime artistic style
+\end{itemize}
+\end{bodytext}
+
+\subsection{SAM Processing}
 
 \begin{bodytext}
 Content to be added...
@@ -152,7 +290,123 @@ Content to be added...
 Content to be added...
 \end{bodytext}
 
-\section{Appendix: Prompt Templates}
+\section{Appendix}
+
+\subsection{Diffusion Model U-Net Architecture}
+
+\begin{bodytext}
+Figure~\ref{fig:unet_architecture} shows the complete U-Net architecture used in diffusion models, including text input processing, skip connections, and multi-modal feature fusion.
+\end{bodytext}
+
+\begin{figure}[h!]
+\centering
+\begin{tikzpicture}[
+    node distance=1.5cm,
+    box/.style={rectangle, draw, thick, minimum width=2.5cm, minimum height=0.8cm, align=center},
+    input/.style={box, fill=blue!20},
+    encoder/.style={box, fill=purple!20},
+    decoder/.style={box, fill=green!20},
+    bottleneck/.style={box, fill=orange!20},
+    output/.style={box, fill=red!20},
+    arrow/.style={->, thick},
+    skip/.style={->, dashed, thick, color=blue},
+    attention/.style={->, dotted, thick, color=red}
+]
+
+% Input layer
+\node[input] (noisy) at (0,8) {Noisy Image\\512×512×3};
+\node[input] (time) at (-4,6) {Timestep\\t};
+\node[input] (text) at (4,6) {Text Prompt\\``a cute cat''};
+
+% Text and time processing
+\node[box, fill=gray!20] (textenc) at (4,4) {Text Encoder\\(CLIP)};
+\node[box, fill=gray!20] (timeemb) at (-4,4) {Time Embedding\\MLP};
+
+% U-Net encoder path
+\node[box] (convin) at (0,6) {Conv Input\\512×512×320};
+
+\node[encoder] (enc1) at (0,4) {Encoder 1\\512×512×320};
+\node[encoder] (enc2) at (0,2) {Encoder 2\\256×256×640};
+\node[encoder] (enc3) at (0,0) {Encoder 3\\128×128×1280};
+
+% Bottleneck
+\node[bottleneck] (bottle) at (0,-2) {Bottleneck\\64×64×1280};
+
+% U-Net decoder path
+\node[decoder] (dec3) at (0,-4) {Decoder 3\\128×128×1280};
+\node[decoder] (dec2) at (0,-6) {Decoder 2\\256×256×640};
+\node[decoder] (dec1) at (0,-8) {Decoder 1\\512×512×320};
+
+% Output
+\node[box] (convout) at (0,-10) {Conv Output\\512×512×3};
+\node[output] (noiseout) at (0,-12) {Predicted Noise\\512×512×3};
+
+% Main forward path
+\draw[arrow] (noisy) -- (convin);
+\draw[arrow] (convin) -- (enc1);
+\draw[arrow] (enc1) -- (enc2);
+\draw[arrow] (enc2) -- (enc3);
+\draw[arrow] (enc3) -- (bottle);
+\draw[arrow] (bottle) -- (dec3);
+\draw[arrow] (dec3) -- (dec2);
+\draw[arrow] (dec2) -- (dec1);
+\draw[arrow] (dec1) -- (convout);
+\draw[arrow] (convout) -- (noiseout);
+
+% Skip connections
+\draw[skip] (enc3) to[bend left=45] (dec3);
+\draw[skip] (enc2) to[bend left=60] (dec2);
+\draw[skip] (enc1) to[bend left=75] (dec1);
+
+% Text processing
+\draw[arrow] (text) -- (textenc);
+\draw[arrow] (time) -- (timeemb);
+
+% Cross-attention connections (text features)
+\draw[attention] (textenc) to[bend right=30] (enc1);
+\draw[attention] (textenc) to[bend right=40] (enc2);
+\draw[attention] (textenc) to[bend right=50] (enc3);
+\draw[attention] (textenc) to[bend right=60] (bottle);
+\draw[attention] (textenc) to[bend left=60] (dec3);
+\draw[attention] (textenc) to[bend left=50] (dec2);
+\draw[attention] (textenc) to[bend left=40] (dec1);
+
+% Time embedding connections
+\draw[attention] (timeemb) to[bend left=30] (enc1);
+\draw[attention] (timeemb) to[bend left=40] (enc2);
+\draw[attention] (timeemb) to[bend left=50] (enc3);
+\draw[attention] (timeemb) to[bend left=60] (bottle);
+\draw[attention] (timeemb) to[bend right=60] (dec3);
+\draw[attention] (timeemb) to[bend right=50] (dec2);
+\draw[attention] (timeemb) to[bend right=40] (dec1);
+
+% Legend
+\node[box, fill=white] (legend) at (8,-2) {
+\begin{minipage}{3cm}
+\textbf{Legend:}\\
+\textcolor{blue}{\rule{1cm}{0.1cm}} Skip Connection\\
+\textcolor{red}{\ldots\ldots\ldots} Cross-Attention\\
+\textcolor{black}{\rule{1cm}{0.1cm}} Forward Path
+\end{minipage}
+};
+
+\end{tikzpicture}
+\caption{Complete U-Net Architecture for Diffusion Models showing multi-modal inputs (image, text, time), skip connections for detail preservation, and cross-attention mechanisms for text-image alignment.}
+\label{fig:unet_architecture}
+\end{figure}
+
+\begin{bodytext}
+\textbf{Key Components:}
+\begin{itemize}
+\item \textbf{Input Processing}: Three types of inputs - noisy image, text prompt (via CLIP encoder), and timestep embedding
+\item \textbf{Skip Connections} (blue dashed): Preserve fine-grained details from encoder to decoder
+\item \textbf{Cross-Attention} (red dotted): Enable text features to guide image generation at every layer
+\item \textbf{U-Net Structure}: Symmetric encoder-decoder with multi-scale feature processing
+\item \textbf{Time Injection}: Timestep embeddings inform each layer about denoising progress
+\end{itemize}
+\end{bodytext}
+
+\subsection{Prompt Templates}
 
 \subsection{Expand Text Prompt Template}
 

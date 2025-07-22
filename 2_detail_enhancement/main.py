@@ -280,24 +280,55 @@ def clean_data(cfg, svg_template_path, svg_cleaned_path):
 
 
 def load_model(model_id, controlnet_id=None, clip_skip=2):
+    """
+    Load and configure AI image generation models.
+    
+    Args:
+        model_id: Path to main diffusion model (e.g., "models/aamXLAnimeMix_v10.safetensors")
+        controlnet_id: ControlNet model ID (e.g., "xinsir/controlnet-tile-sdxl-1.0")
+        clip_skip: Number of CLIP layers to skip (default: 2)
+    
+    Returns:
+        pipe: Configured image generation pipeline object
+    """
+    
+    # Step 1: Device Selection - Choose the best available computing device
     if torch.backends.mps.is_available():
-        # app silicon use mps
+        # Apple Silicon (M1/M2) GPU using Metal Performance Shaders
         device = torch.device("mps")
     else:
+        # NVIDIA GPU (CUDA) or fallback to CPU
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Step 2: Load ControlNet Model - Load structure control model for layout preservation
     controlnet = ControlNetModel.from_pretrained(
-        controlnet_id, torch_dtype=torch.float16, use_safetensors=True
-    ).to(device)
+        controlnet_id, 
+        torch_dtype=torch.float16,  # Use half-precision to save memory
+        use_safetensors=True        # Use secure model file format
+    ).to(device)  # Move model to selected computing device
+    
+    # Step 3: Load Main Diffusion Pipeline - Create complete image-to-image generation pipeline
     pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_single_file(
-        model_id, controlnet=controlnet, torch_dtype=torch.float16
-    ).to(device)
+        model_id,                   # Load from single model file (.safetensors)
+        controlnet=controlnet,      # Integrate previously loaded ControlNet
+        torch_dtype=torch.float16   # Use half-precision for memory efficiency
+    ).to(device)  # Move entire pipeline to computing device
+    
+    # Step 4: Set Scheduler - Configure denoising algorithm for high-quality sampling
     pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
-
+    
+    # Step 5: CLIP Layer Skipping - Adjust text encoder for different artistic effects
     clip_layers = pipe.text_encoder.text_model.encoder.layers
     if clip_skip > 0:
+        # Skip last 'clip_skip' layers: [:-clip_skip] means "all except last N layers"
         pipe.text_encoder.text_model.encoder.layers = clip_layers[:-clip_skip]
+    
+    # Step 6: Memory Optimization - Enable CPU offloading on non-Apple devices
     if not torch.backends.mps.is_available():
+        # Move unused model parts to CPU memory to save GPU memory
         pipe.enable_model_cpu_offload()
+    
+    # Step 7: Return Configured Pipeline - Return ready-to-use image generation "machine"
     return pipe
 
 
