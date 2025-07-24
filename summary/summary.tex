@@ -8,6 +8,7 @@
 \usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{array}
+\usepackage{multirow}
 \usepackage{xcolor}
 \usepackage{colortbl}
 \usepackage{fancyhdr}
@@ -244,50 +245,334 @@ os.system(f'picosvg {svg_template_path} > {svg_cleaned_path}')
 \subsection{Image Diffusion}
 
 \begin{bodytext}
-This step enhances the cleaned SVG using two independent models: a specialized diffusion model for artistic style and a ControlNet for structural control.
+This step uses a Diffusion Pipeline to generate 4 enhanced images from the cleaned SVG, combining img2img content generation with ControlNet structure preservation.
 \end{bodytext}
 
 \begin{bodytext}
-\textbf{Diffusion Model: aamXLAnimeMix v1.0}
+\textbf{Pipeline Architecture: StableDiffusionXLControlNetImg2ImgPipeline}
 \begin{itemize}
-\item \textbf{Purpose}: Generate anime/cartoon style images with children's coloring book aesthetic
-\item \textbf{Source}: Pre-trained Stable Diffusion XL model specialized for anime artwork (6.46GB)
-\item \textbf{Input}: Text prompt + original SVG image + blurred control image
-\item \textbf{Output}: Enhanced artistic PNG image
+\item \textbf{Framework}: Hugging Face Diffusers standard pipeline
+\item \textbf{Type}: SDXL + ControlNet + img2img combined architecture
+\item \textbf{Dual Input}: Original SVG image (content) + Blurred SVG image (structure control)
+\item \textbf{Output}: 4 enhanced PNG images per generation
 \end{itemize}
 \end{bodytext}
 
 \begin{bodytext}
-\textbf{ControlNet Model: controlnet-tile-sdxl-1.0}
+\textbf{Model Components:}
 \begin{itemize}
-\item \textbf{Purpose}: Preserve SVG structure while allowing artistic enhancement
-\item \textbf{Architecture}: Independent U-Net encoder that replicates main diffusion model structure
-\item \textbf{Input}: Blurred SVG rendering (Gaussian blur, radius=7)
-\item \textbf{Output}: Multi-scale structural features for layout preservation
+\item \textbf{Main Model}: aamXLAnimeMix v1.0 - SDXL-based anime-style model (6.46GB, Civitai)
+\item \textbf{ControlNet}: controlnet-tile-sdxl-1.0 - Structure preservation model (Hugging Face)
+\item \textbf{Compatibility}: Both models use SDXL architecture family for seamless integration
 \end{itemize}
 \end{bodytext}
 
 \begin{bodytext}
-\textbf{Model Integration Process:}
+\textbf{Generation Parameters:}
+\end{bodytext}
+
+\begin{table}[h!]
+\centering
+\small
+\begin{tabular}{|l|c|l|}
+\hline
+\textbf{Parameter} & \textbf{Default} & \textbf{Description} \\
+\hline
+prompt & & Style guidance (not detail enhancement) \\
+\hline
+negative\_prompt & & Avoid undesired style artifacts \\
+\hline
+image & & Content baseline \\
+\hline
+control\_image & & Structure constraint \\
+\hline
+guidance\_scale & 7.5 & Text adherence strength \\
+\hline
+num\_inference\_steps & 50 & Denoising steps \\
+\hline
+strength & 0.8 & img2img intensity \\
+\hline
+controlnet\_conditioning\_scale & 1.0 & ControlNet strength \\
+\hline
+num\_images\_per\_prompt & 1 & Multiple variations \\
+\hline
+\end{tabular}
+\caption{Diffusion Pipeline Parameters Configuration}
+\end{table}
+
+\begin{bodytext}
+\textbf{Processing Flow and Results:}
 \begin{itemize}
-\item ControlNet extracts structural features from blurred control image
-\item Features have identical dimensions to corresponding diffusion model layers
-\item Integration via element-wise addition: main\_features[i] + control\_features[i]
-\item Fusion occurs at multiple resolution levels: 512×512, 256×256, 128×128, 64×64
-\item Result: Enhanced image with preserved SVG layout and anime artistic style
+\item Input: SVG → rendered to PNG → create blurred version for structure control
+\item Diffusion: img2img pipeline generates enhanced versions based on original content
+\item ControlNet: simultaneously enforces structural constraints from blurred input
+\item Output: StableDiffusionPipelineOutput object with .images attribute
+\item Result: List of 4 PIL.Image objects (enhanced PNG images)
+\item Selection: Project uses first image as target\_image.png, saves all 4 as target\_1.png to target\_4.png
 \end{itemize}
 \end{bodytext}
 
 \subsection{SAM Processing}
 
 \begin{bodytext}
-Content to be added...
+This step extracts new detail regions from the enhanced image and converts them to SVG paths, using a two-stage comparison approach with the Segment Anything Model.
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Two-Stage Segmentation Strategy:}
+\begin{itemize}
+\item \textbf{Stage 1 - Original Image}: Segment cleaned SVG rendering using coarse configuration (24×24 grid points)
+\item \textbf{Stage 2 - Enhanced Image}: Segment Diffusion-enhanced PNG using fine configuration (48×48 grid points)
+\item \textbf{Rationale}: Enhanced images contain more details, requiring denser sampling for complete capture
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{SAM Model Configuration:}
+\begin{itemize}
+\item \textbf{Architecture}: Vision Transformer (ViT-Huge, 630M parameters)
+\item \textbf{Working Mode}: Grid-point automatic segmentation (no manual prompts)
+\item \textbf{Coarse Config}: 576 sampling points, min area 100px (capture main regions)
+\item \textbf{Fine Config}: 2304 sampling points, min area 30px (capture fine details)
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Mask Comparison and Selection:}
+\begin{itemize}
+\item Compare enhanced image masks against original image masks
+\item Filter new masks by: size constraints, overlap threshold (IoU < 0.4), visibility ratio
+\item Select only genuinely new regions added by Diffusion enhancement
+\item Reject duplicates, noise fragments, and heavily occluded areas
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Vectorization Process:}
+\begin{itemize}
+\item Extract contours from selected binary masks using edge detection
+\item Simplify contours to polygons with optimized point reduction
+\item Extract dominant colors from corresponding image regions
+\item Convert to SVG path format: MoveTo (M) → LineTo (L) → ClosePath (Z)
+\item Add new paths to original cleaned SVG while preserving existing elements
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Final Output:} Enhanced SVG containing original paths plus new detail paths extracted from Diffusion-generated enhancements, combining the structure preservation of the original design with artistic details from AI enhancement.
 \end{bodytext}
 
 \section{Stage 3: SVG Optimization}
 
 \begin{bodytext}
-Content to be added...
+This stage refines the enhanced SVG from Stage 2 using a specialized VAE model to optimize path geometry, improve aesthetic quality, and ensure visual coherence. The process involves three sequential phases: parameter initialization, latent inversion, and latent optimization.
+\end{bodytext}
+
+\subsection{Parameter Initialization}
+
+\begin{bodytext}
+The Painter class serves as the central container for all optimization parameters and functionality. It manages SVG paths, trainable parameters, rendering operations, and result saving in a unified interface.
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Painter Initialization:}
+\begin{itemize}
+\item Load cleaned SVG file and target PNG image from Stage 2
+\item Parse SVG paths into manageable shape objects and control points
+\item Set up rendering canvas with standardized dimensions (512×512)
+\item Initialize device configuration for GPU/CPU computation
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Parameter Categories:} Four types of trainable parameters are initialized for each SVG path:
+\begin{itemize}
+\item \textbf{Latent Vectors}: 24-dimensional vectors controlling geometric aesthetics (core parameters)
+\item \textbf{Affine Transforms}: Rotation angles, scale factors, translation coordinates
+\item \textbf{Visual Properties}: Fill colors, stroke colors, stroke widths
+\item \textbf{Regularization}: Background parameters and rendering settings
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Latent Vector Initialization:} Instead of random initialization, the system uses circle.svg from the VAE dataset. This reference SVG is encoded through the VAE to generate a meaningful 24-dimensional starting vector, which is then cloned for each path in the target SVG.
+\end{bodytext}
+
+\subsection{Latent Inversion}
+
+\begin{bodytext}
+Latent Inversion performs "reverse engineering" to find optimal 24-dimensional vectors that, when decoded by the VAE, produce paths closely matching the original SVG geometry.
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Process Overview:}
+\begin{itemize}
+\item \textbf{Starting Point}: Each path begins with circle.svg's encoded vector (aesthetically valid but geometrically incorrect)
+\item \textbf{Target Preparation}: Original SVG paths are sampled into dense point sets as matching targets
+\item \textbf{Iterative Adjustment}: VAE decoder generates paths from current vectors, compared against targets
+\item \textbf{Individual Optimization}: Each path optimizes independently toward its specific target shape
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Why "Inversion"?} The process reverses normal VAE flow:
+\begin{itemize}
+\item \textbf{Normal VAE}: Original SVG → Encoder → Latent Vector → Decoder → Reconstructed SVG
+\item \textbf{Latent Inversion}: \textcolor{red}{? Latent Vector} ← Optimization ← Decoder → Compare with Target
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Loss Function Structure:} The optimization focuses on single-path accuracy without considering inter-path coordination:
+\begin{itemize}
+\item \textbf{Shape Matching}: EMD loss comparing decoded paths with target point sets
+\item \textbf{Smoothness}: Laplacian smoothing loss ensuring path continuity
+\item \textbf{Regularization}: KL divergence maintaining vectors within valid VAE distribution
+\item \textbf{No Coordination}: No MSE, IoU, or inter-path relationship constraints
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Output}: Each path obtains its optimized 24-dimensional "identity vector" that produces the desired shape when decoded, serving as the foundation for the subsequent coordination phase.
+\end{bodytext}
+
+\subsection{Latent Optimization}
+
+\begin{bodytext}
+Latent Optimization shifts from individual path accuracy to global image coordination, ensuring the overall rendered result matches the target image from Stage 2's diffusion output while maintaining path shape integrity.
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Optimization Target Shift:}
+\begin{itemize}
+\item \textbf{Input}: Optimized latent vectors from Latent Inversion (individually accurate)
+\item \textbf{Goal}: Coordinate all paths to collectively render an image matching the diffusion target
+\item \textbf{Global Perspective}: Focus on overall visual coherence rather than individual path precision
+\item \textbf{Dual Constraints}: Balance target image similarity with original path shape preservation
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Core Optimization Loop:} The process iteratively adjusts latent vectors through a comprehensive loss function:
+\begin{itemize}
+\item \textbf{Decode}: VAE decoder converts current latent vectors to SVG control points
+\item \textbf{Transform}: Apply affine transformations (rotation, scale, translation) to each path
+\item \textbf{Render}: Generate complete image from all transformed paths combined
+\item \textbf{Compare}: Calculate multiple loss terms against various targets (image, shape, distribution)
+\item \textbf{Update}: Backpropagate gradients to adjust latent vectors and transform parameters
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Multi-Objective Loss Structure:} Unlike single-path focus in Latent Inversion, this stage balances five different optimization objectives simultaneously, each targeting different aspects of visual quality and structural integrity.
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Gradient-Based Parameter Updates:} The optimization uses standard PyTorch autograd to adjust trainable parameters:
+\begin{itemize}
+\item \textbf{Primary Targets}: 24-dimensional latent vectors (core geometric control)
+\item \textbf{Secondary Parameters}: Affine transform coefficients, colors, stroke properties
+\item \textbf{Fixed Elements}: Pre-trained VAE model weights remain frozen throughout
+\item \textbf{Update Process}: Adam optimizer with cosine learning rate scheduling
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Output}: SVG with globally coordinated paths that collectively produce visually coherent results matching the target image while preserving individual path semantic integrity.
+\end{bodytext}
+
+\subsection{Loss Function Analysis}
+
+\begin{bodytext}
+The two optimization stages employ distinct loss function combinations reflecting their different objectives and constraints. Table~\ref{tab:loss_functions} summarizes the loss components used in each stage.
+\end{bodytext}
+
+\begin{center}
+\tablesetup
+\begin{longtable}{|p{3.5cm}|p{3cm}|p{3cm}|p{5.5cm}|}
+\caption{Loss Function Analysis Across SVG Optimization Stages}
+\label{tab:loss_functions} \\
+\hline
+\tableheaderstyle
+\headertext{Stage} & \headertext{Loss Function} & \headertext{Mathematical Target} & \headertext{Optimization Purpose \& Differentiable Params} \\
+\hline
+\endfirsthead
+
+\multicolumn{4}{c}%
+{{\bfseries \tablename\ \thetable{} -- continued from previous page}} \\
+\hline
+\tableheaderstyle
+\headertext{Stage} & \headertext{Loss Function} & \headertext{Mathematical Target} & \headertext{Optimization Purpose \& Differentiable Params} \\
+\hline
+\endhead
+
+\hline \multicolumn{4}{|r|}{{Continued on next page}} \\ \hline
+\endfoot
+
+\hline
+\endlastfoot
+
+\multirow{3}{*}{\textbf{Latent Inversion}} & EMD Loss & Earth Mover Distance & Make decoded paths match original SVG geometry. \textit{Optimizes: latent vectors → VAE decoder → control points} \\
+\cline{2-4}
+& Laplacian Smoothing & $\sum \|p_i - \frac{1}{2}(p_{i-1} + p_{i+1})\|^2$ & Maintain path continuity, avoid jagged changes. \textit{Optimizes: latent vectors → VAE decoder → control points} \\
+\cline{2-4}
+& KL Divergence & $\frac{1}{2}\sum(\sigma^2 + \mu^2 - 1 - \log\sigma^2)$ & Keep latent vectors within VAE valid distribution. \textit{Optimizes: latent vector distribution} \\
+\hline
+
+\multirow{4}{*}{\textbf{Latent Optimization}} & MSE Loss & $\|\text{rendered} - \text{target}\|^2$ & Global image matching, approach target image. \textit{Optimizes: latent vectors → VAE decoder → rendered image} \\
+\cline{2-4}
+& Curvature Loss & $\sum \|p_{i-1} - 2p_i + p_{i+1}\|^2$ & Control geometric smoothness, reduce sharp curvature. \textit{Optimizes: latent vectors → VAE decoder → control points} \\
+\cline{2-4}
+& KL Divergence & Same as above & Regularization constraint, prevent VAE space drift. \textit{Optimizes: latent vector distribution} \\
+\cline{2-4}
+& Path IoU Loss (Optional) & $1 - \frac{\text{intersection}}{\text{union}}$ & Preserve path shapes, prevent drift from SAM reference. \textit{Optimizes: latent vectors → VAE decoder → path masks} \\
+\hline
+
+\multirow{2}{*}{\textbf{Point Optimization}} & MSE Loss & $\|\text{rendered} - \text{target}\|^2$ & Pixel-level image matching, final quality optimization. \textit{Optimizes: direct control point coordinates} \\
+\cline{2-4}
+& Curvature Loss & $\sum \|p_{i-1} - 2p_i + p_{i+1}\|^2$ & Geometric smoothness with adaptive weight decay. \textit{Optimizes: direct control point coordinates} \\
+\hline
+
+\end{longtable}
+\end{center}
+
+\begin{bodytext}
+\textbf{Three-Stage Optimization Strategy:}
+\begin{itemize}
+\item \textbf{Latent Inversion}: Individual path accuracy (EMD + Smoothing + KL)
+\item \textbf{Latent Optimization}: Global coordination (MSE + Curvature + KL + IoU)
+\item \textbf{Point Optimization}: Pixel-level refinement (MSE + Curvature)
+\item \textbf{Core Philosophy}: "Make each path correct" → "Make overall image correct" → "Make result most precise"
+\end{itemize}
+\end{bodytext}
+
+\subsection{Point Optimization}
+
+\begin{bodytext}
+Point Optimization abandons latent space constraints and directly optimizes SVG control point coordinates for pixel-level precision.
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Core Changes:}
+\begin{itemize}
+\item \textbf{Optimization Target}: Latent vectors → Direct control point coordinates
+\item \textbf{Computation Path}: Control points → Render → Image → Loss (bypasses VAE)
+\item \textbf{Coordinate System}: 256×256 → 512×512 (pure mathematical scaling, zero distortion)
+\item \textbf{Differentiable Rendering}: Uses pydiffvg for geometry-to-pixel gradient flow
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Loss Functions}: Only essential components
+\begin{itemize}
+\item \textbf{MSE Loss}: Pixel-level matching with target image
+\item \textbf{Curvature Loss}: Geometric smoothness (weight decays from 2.0 to 0.1)
+\item \textbf{Removed Constraints}: No KL divergence (no latent space), no IoU loss
+\end{itemize}
+\end{bodytext}
+
+\begin{bodytext}
+\textbf{Technical Advantage}: Breaks VAE limitations through direct coordinate optimization for maximum precision geometric control.
 \end{bodytext}
 
 \section{Appendix}
