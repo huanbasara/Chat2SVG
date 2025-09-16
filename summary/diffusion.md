@@ -70,6 +70,39 @@ Diffusion = 把噪声变成图片的魔法，就像从云雾中慢慢显现出�
 - **U-Net**: 在保持结构的前提下，增强图像细节
 - **结果**: SVG轮廓 + 丰富细节 = 精美图像
 
+### **Stage 2b: Detail Enhancement配置**
+
+**模型选择**:
+```python
+diffusion_model_id = "models/aamXLAnimeMix_v10.safetensors"  # 动漫风格SDXL
+controlnet_id = "xinsir/controlnet-tile-sdxl-1.0"           # 布局保持
+```
+
+**关键参数**:
+- **clip_skip=2**: 跳过CLIP最后2层，适合艺术绘画风格而非照片写实
+- **EulerAncestralDiscreteScheduler**: 30步快速收敛+随机性增加创意
+- **controlnet_conditioning_scale=0.5**: 平衡结构保持与艺术发挥
+- **torch_dtype=float16**: 半精度浮点，节省显存
+
+**数据流程**:
+```
+清理后SVG → 渲染PNG → VAE编码 → 潜在空间(64×64×4)
+                                    ↓
+文本prompt → CLIP编码 → 语义向量 → U-Net去噪处理
+                                    ↓
+ControlNet → 结构约束 → 控制特征 → 融合到U-Net
+                                    ↓
+去噪潜在表示 → VAE解码 → 高质量目标图像
+```
+
+**两种VAE对比**:
+| | Stage 2 Diffusion VAE | Stage 3 SVG VAE |
+|--|----------------------|------------------|
+| **输入** | 像素图像(512×512×3) | SVG控制点坐标 |
+| **输出** | 潜在表示(64×64×4) | 潜在向量 |
+| **用途** | 图像压缩加速diffusion | SVG几何参数优化 |
+| **目标** | 像素级图像增强 | 几何结构优化 |
+
 ## 💡 记忆口诀
 
 ```
